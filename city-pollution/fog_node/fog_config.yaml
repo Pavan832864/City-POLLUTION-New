@@ -1,0 +1,25 @@
+# Fog Node Configuration
+# Smart City Pollution Monitoring System
+
+fog_node_id: "FOG-DUBLIN-001"
+host: "0.0.0.0"
+port: 5001
+
+# URL of the cloud ingest endpoint.
+# LOCAL development  : "http://localhost:5002/ingest"
+# AWS (after deploy) : replace with your API Gateway invoke URL, e.g.
+#   "https://<api-id>.execute-api.<region>.amazonaws.com/<stage>/ingest"
+backend_url: "https://zhgqcm54si.execute-api.us-east-1.amazonaws.com/prod/ingest"
+
+# How often (seconds) the fog node aggregates its buffer and dispatches to backend
+dispatch_interval: 15
+
+# Minimum readings in buffer before dispatch (avoids sending near-empty batches)
+min_readings_to_dispatch: 1
+
+# Anomaly detection: readings beyond this many std-deviations from recent mean
+anomaly_z_threshold: 2.5
+
+# Rolling window size for per-sensor statistics
+rolling_window_size: 20
+

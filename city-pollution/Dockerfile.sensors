@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY sensors/ ./sensors/
+
+ENV FOG_NODE_URL=http://fog_node:5001/sensor-data
+
+CMD ["python", "sensors/sensor_simulator.py"]

@@ -1,0 +1,78 @@
+version: "3.9"
+
+# Smart City Pollution Monitoring System
+# Local Docker Compose orchestration
+#
+# Services:
+#   backend    — Flask API + SQLite + SSE dashboard  (port 5002)
+#   fog_node   — Flask fog node + dispatcher          (port 5001)
+#   sensors    — 5 pollution sensor simulators
+#
+# Start all:   docker compose up --build
+# Dashboard:   http://localhost:5002
+# Fog health:  http://localhost:5001/health
+
+services:
+
+  # ── Backend (Cloud Layer) ──────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: pollution-backend
+    ports:
+      - "5002:5002"
+    environment:
+      - BACKEND_HOST=0.0.0.0
+      - BACKEND_PORT=5002
+      - DATABASE_URL=sqlite:///./pollution.db
+    volumes:
+      # Persist SQLite database between container restarts
+      - backend-data:/app/backend
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:5002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Fog Node (Fog Layer) ───────────────────────────────────────────────────
+  fog_node:
+    build:
+      context: .
+      dockerfile: Dockerfile.fog
+    container_name: pollution-fog
+    ports:
+      - "5001:5001"
+    environment:
+      - BACKEND_URL=http://backend:5002/ingest
+      - FOG_NODE_ID=FOG-DUBLIN-001
+      - FOG_PORT=5001
+      - DISPATCH_INTERVAL=15
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Sensor Simulators (Sensor Layer) ──────────────────────────────────────
+  sensors:
+    build:
+      context: .
+      dockerfile: Dockerfile.sensors
+    container_name: pollution-sensors
+    environment:
+      - FOG_NODE_URL=http://fog_node:5001/sensor-data
+    depends_on:
+      fog_node:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  backend-data:

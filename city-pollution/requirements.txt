@@ -1,0 +1,17 @@
+# Smart City Pollution Monitoring System
+# Shared Python dependencies
+
+# Web framework
+flask==3.0.3
+
+# HTTP client (sensors → fog node, fog node → backend)
+requests==2.31.0
+
+# YAML configuration files
+pyyaml==6.0.1
+
+# ORM + SQLite (backend)
+sqlalchemy==2.0.30
+
+# WSGI server (production)
+gunicorn==22.0.0

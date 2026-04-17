@@ -1,0 +1,50 @@
+# Sensor Simulator Configuration
+# Smart City Pollution Monitoring System
+
+fog_node_url: "http://localhost:5001/sensor-data"
+
+sensors:
+  - id: "PM25-DUBLIN-001"
+    type: "PM2.5"
+    location: "Dublin City Centre"
+    unit: "µg/m³"
+    dispatch_interval: 5        # seconds between readings
+    base_value: 10.0            # baseline µg/m³ (good air quality)
+    noise_factor: 0.25          # fractional noise amplitude
+    spike_probability: 0.03     # probability of anomaly spike per reading
+
+  - id: "PM10-DUBLIN-001"
+    type: "PM10"
+    location: "Dublin City Centre"
+    unit: "µg/m³"
+    dispatch_interval: 5
+    base_value: 22.0
+    noise_factor: 0.30
+    spike_probability: 0.03
+
+  - id: "NO2-DUBLIN-001"
+    type: "NO2"
+    location: "Dublin North Quays"
+    unit: "ppb"
+    dispatch_interval: 8
+    base_value: 32.0
+    noise_factor: 0.35
+    spike_probability: 0.04
+
+  - id: "CO-DUBLIN-001"
+    type: "CO"
+    location: "Dublin South Circular"
+    unit: "ppm"
+    dispatch_interval: 10
+    base_value: 1.8
+    noise_factor: 0.20
+    spike_probability: 0.02
+
+  - id: "O3-DUBLIN-001"
+    type: "O3"
+    location: "Dublin West"
+    unit: "ppb"
+    dispatch_interval: 7
+    base_value: 38.0
+    noise_factor: 0.28
+    spike_probability: 0.03

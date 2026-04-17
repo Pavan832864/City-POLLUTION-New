@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart City Pollution Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --border:    #30363d;
+      --text:      #c9d1d9;
+      --muted:     #8b949e;
+      --accent:    #58a6ff;
+      --good:      #3fb950;
+      --unhealthy: #f85149;
+      --radius:    10px;
+      --gap:       16px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .live-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--good);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    #conn-status {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #conn-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--unhealthy);
+      transition: background .3s;
+    }
+    #conn-dot.connected { background: var(--good); }
+
+    /* ── Layout ──────────────────────────────────────────────────────────── */
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: var(--gap);
+    }
+
+    /* ── AQI summary cards ───────────────────────────────────────────────── */
+    #aqi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: var(--gap);
+      margin-bottom: var(--gap);
+    }
+
+    .aqi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      transition: border-color .2s;
+    }
+    .aqi-card:hover { border-color: var(--accent); }
+
+    .aqi-card .sensor-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .aqi-card .reading-value {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 2px;
+    }
+
+    .aqi-card .reading-unit {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .aqi-card .aqi-badge {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .aqi-card .card-location {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 6px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Charts grid ─────────────────────────────────────────────────────── */
+    #charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: var(--gap);
+      margin-bottom: var(--gap);
+    }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .chart-card h3 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chart-card h3 .cur-value {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      background: var(--bg);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .chart-wrapper { position: relative; height: 180px; }
+
+    /* ── Alerts ──────────────────────────────────────────────────────────── */
+    #alerts-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: var(--gap);
+    }
+
+    #alerts-panel h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--unhealthy);
+    }
+
+    #alerts-list {
+      list-style: none;
+      max-height: 160px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    #alerts-list li {
+      background: rgba(248, 81, 73, .1);
+      border-left: 3px solid var(--unhealthy);
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+
+    #alerts-list .no-alerts {
+      background: none;
+      border-left: 3px solid var(--good);
+      color: var(--muted);
+    }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 11px;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>
+    <span class="live-dot"></span>
+    Smart City Pollution Monitor &mdash; Dublin
+  </h1>
+  <div id="conn-status">
+    <span id="conn-dot"></span>
+    <span id="conn-text">Connecting&hellip;</span>
+  </div>
+</header>
+
+<main>
+  <div id="aqi-grid"></div>
+
+  <div id="charts-grid">
+    <div class="chart-card">
+      <h3>PM2.5 &mdash; Fine Particulate Matter <span class="cur-value" id="cur-PM25">&ndash;</span></h3>
+      <div class="chart-wrapper"><canvas id="chart-PM25"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>PM10 &mdash; Coarse Particulate Matter <span class="cur-value" id="cur-PM10">&ndash;</span></h3>
+      <div class="chart-wrapper"><canvas id="chart-PM10"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>NO&#x2082; &mdash; Nitrogen Dioxide <span class="cur-value" id="cur-NO2">&ndash;</span></h3>
+      <div class="chart-wrapper"><canvas id="chart-NO2"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>CO &mdash; Carbon Monoxide <span class="cur-value" id="cur-CO">&ndash;</span></h3>
+      <div class="chart-wrapper"><canvas id="chart-CO"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>O&#x2083; &mdash; Ozone <span class="cur-value" id="cur-O3">&ndash;</span></h3>
+      <div class="chart-wrapper"><canvas id="chart-O3"></canvas></div>
+    </div>
+  </div>
+
+  <div id="alerts-panel">
+    <h2>&#9888; Anomaly Alerts</h2>
+    <ul id="alerts-list">
+      <li class="no-alerts">No anomalies detected yet.</li>
+    </ul>
+  </div>
+</main>
+
+<footer>
+  Smart City Pollution Monitoring System &nbsp;|&nbsp;
+  NCI MSc Cloud Computing 2026 &nbsp;|&nbsp;
+  Fog &amp; Edge Computing (H9FECC)
+</footer>
+
+<script>
+// ── Constants ────────────────────────────────────────────────────────────────
+const MAX_POINTS = 40;   // max data points shown per chart
+
+// sensor_type as it comes from backend → stable key for maps
+const SENSOR_CONFIGS = {
+  "PM2.5": { chartId: "chart-PM25", curId: "cur-PM25", unit: "ug/m3",  line: "#58a6ff", fill: "rgba(88,166,255,.15)"  },
+  "PM10":  { chartId: "chart-PM10", curId: "cur-PM10", unit: "ug/m3",  line: "#3fb950", fill: "rgba(63,185,80,.15)"   },
+  "NO2":   { chartId: "chart-NO2",  curId: "cur-NO2",  unit: "ppb",    line: "#f0883e", fill: "rgba(240,136,62,.15)"  },
+  "CO":    { chartId: "chart-CO",   curId: "cur-CO",   unit: "ppm",    line: "#a371f7", fill: "rgba(163,113,247,.15)" },
+  "O3":    { chartId: "chart-O3",   curId: "cur-O3",   unit: "ppb",    line: "#ffa657", fill: "rgba(255,166,87,.15)"  },
+};
+
+// ── Build one Chart.js chart per sensor type ─────────────────────────────────
+const charts = {};
+
+Object.entries(SENSOR_CONFIGS).forEach(([type, cfg]) => {
+  const canvas = document.getElementById(cfg.chartId);
+  if (!canvas) return;
+
+  charts[type] = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [{
+        label: type,
+        data: [],
+        borderColor:     cfg.line,
+        backgroundColor: cfg.fill,
+        borderWidth: 3,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        pointBackgroundColor: cfg.line,
+        fill: true,
+        tension: 0.35,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { intersect: false, mode: "index" },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.y.toFixed(3)} ${cfg.unit}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid:  { color: "rgba(48,54,61,.6)" },
+          ticks: {
+            color: "#8b949e",
+            maxTicksLimit: 6,
+            maxRotation: 0,
+          }
+        },
+        y: {
+          grace: "15%",
+          grid:  { color: "rgba(48,54,61,.6)" },
+          ticks: { color: "#8b949e" },
+          title: {
+            display: true,
+            text: cfg.unit,
+            color: "#8b949e",
+            font: { size: 11 }
+          }
+        }
+      }
+    }
+  });
+});
+
+// ── Push one reading into a chart ─────────────────────────────────────────────
+function pushToChart(reading) {
+  const chart = charts[reading.sensor_type];
+  if (!chart) return;
+
+  const label = new Date(reading.sensor_ts || Date.now()).toLocaleTimeString();
+  const value = reading.raw_value;
+
+  chart.data.labels.push(label);
+  chart.data.datasets[0].data.push(value);
+
+  // Slide window — drop oldest point when over limit
+  if (chart.data.labels.length > MAX_POINTS) {
+    chart.data.labels.shift();
+    chart.data.datasets[0].data.shift();
+  }
+
+  chart.update();
+
+  // Update current-value badge in chart header
+  const cfg = SENSOR_CONFIGS[reading.sensor_type];
+  if (cfg) {
+    const el = document.getElementById(cfg.curId);
+    if (el) el.textContent = `${value.toFixed(3)} ${cfg.unit}`;
+  }
+}
+
+// ── AQI summary cards ─────────────────────────────────────────────────────────
+const aqiCards = {};
+
+function upsertAqiCard(reading) {
+  const type = reading.sensor_type;
+  const cfg  = SENSOR_CONFIGS[type];
+  if (!cfg) return;
+
+  if (!aqiCards[type]) {
+    const grid = document.getElementById("aqi-grid");
+    const card = document.createElement("div");
+    card.className = "aqi-card";
+    card.innerHTML = `
+      <div class="sensor-label">${type}</div>
+      <div class="reading-value" id="aval-${type}">-</div>
+      <div class="reading-unit">${cfg.unit}</div>
+      <span class="aqi-badge" id="abadge-${type}">-</span>
+      <div class="card-location" id="aloc-${type}">${reading.location || ''}</div>
+    `;
+    grid.appendChild(card);
+    aqiCards[type] = card;
+  }
+
+  const valEl   = document.getElementById(`aval-${type}`);
+  const badgeEl = document.getElementById(`abadge-${type}`);
+
+  if (valEl) valEl.textContent = reading.raw_value.toFixed(2);
+
+  if (badgeEl && reading.aqi) {
+    const aqiVal    = reading.aqi.value;
+    const aqiLabel  = reading.aqi.label  || "Unknown";
+    const aqiColour = reading.aqi.colour || "#888888";
+    badgeEl.textContent      = `AQI ${aqiVal} - ${aqiLabel}`;
+    badgeEl.style.background = aqiColour;
+    // Pick readable text colour
+    badgeEl.style.color = lightness(aqiColour) > 128 ? "#000" : "#fff";
+  }
+}
+
+function lightness(hex) {
+  // Strip # and parse RGB
+  const h = hex.replace("#","");
+  const r = parseInt(h.substring(0,2),16);
+  const g = parseInt(h.substring(2,4),16);
+  const b = parseInt(h.substring(4,6),16);
+  return 0.299*r + 0.587*g + 0.114*b;
+}
+
+// ── Anomaly alerts ────────────────────────────────────────────────────────────
+const alertsList  = document.getElementById("alerts-list");
+let   alertsShown = 0;
+
+function addAlert(reading) {
+  if (alertsShown === 0) alertsList.innerHTML = "";
+  alertsShown++;
+
+  const ts   = new Date(reading.sensor_ts || Date.now()).toLocaleTimeString();
+  const cfg  = SENSOR_CONFIGS[reading.sensor_type] || {};
+  const unit = cfg.unit || reading.unit || "";
+  const li   = document.createElement("li");
+  li.textContent = `[${ts}]  ${reading.sensor_id}  —  ${reading.sensor_type}: `
+                 + `${reading.raw_value.toFixed(3)} ${unit}  `
+                 + `(AQI ${reading.aqi?.value ?? "—"})  ⚠ anomaly`;
+  alertsList.prepend(li);
+  if (alertsList.children.length > 20) alertsList.removeChild(alertsList.lastChild);
+}
+
+// ── Process each reading from SSE or history load ────────────────────────────
+function processReading(reading) {
+  pushToChart(reading);
+  upsertAqiCard(reading);
+  if (reading.anomaly) addAlert(reading);
+}
+
+// ── SSE connection ────────────────────────────────────────────────────────────
+const connDot  = document.getElementById("conn-dot");
+const connText = document.getElementById("conn-text");
+
+function setConnected(ok) {
+  connDot.className    = ok ? "connected" : "";
+  connText.textContent = ok ? "Live" : "Reconnecting...";
+}
+
+function connectSSE() {
+  const src = new EventSource("/stream");
+
+  src.onmessage = evt => {
+    let payload;
+    try { payload = JSON.parse(evt.data); } catch { return; }
+
+    if (payload.type === "connected") {
+      setConnected(true);
+      return;
+    }
+
+    if (payload.type === "readings" && Array.isArray(payload.data)) {
+      payload.data.forEach(processReading);
+    }
+  };
+
+  src.onerror = () => {
+    setConnected(false);
+    src.close();
+    setTimeout(connectSSE, 3000);
+  };
+}
+
+// ── Bootstrap: load history then open SSE ────────────────────────────────────
+async function loadHistory() {
+  try {
+    const resp = await fetch("/readings?limit=200");
+    if (!resp.ok) return;
+    const rows = await resp.json();
+    // rows come newest-first from API → reverse for chronological order
+    rows.reverse().forEach(processReading);
+  } catch (e) {
+    console.warn("History load failed:", e);
+  }
+}
+
+loadHistory().then(connectSSE);
+</script>
+</body>
+</html>
